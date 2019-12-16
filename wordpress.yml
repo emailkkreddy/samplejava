@@ -1,0 +1,80 @@
+---
+ - hosts: web1
+   become: true
+   vars:
+      a: "apache2"
+      b: "mysql-server"
+      c: "mysql-client"
+      d: "php"
+      e: "libapache2-mod-php"
+      f: "php-mcrypt"
+      g: "php-mysql"
+      h: "password"
+      i: "python-mysqldb"
+      j: "root"
+      k: "unzip"
+   tasks:
+    - name: Installing several packages
+      apt: pkg={{ item }} state=present update_cache=yes
+      with_items:
+       - "{{ a }}"
+       - "{{ b }}"
+       - "{{ c }}"
+       - "{{ d }}"
+       - "{{ e }}"
+       - "{{ f }}"
+       - "{{ g }}"
+       - "{{ i }}"
+       - "{{ k }}"
+    - name: set mysql password
+      command: touch /var/mysqlroot && sudo mysql -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'rootpassword';"
+      args:
+        creates: /var/mysqlroot
+    - name: Download html
+      get_url: 
+        url: https://gitlab.com/roybhaskar9/devops/raw/master/coding/chef/chefwordpress/files/default/mysqlcommands
+        dest: /tmp/mysqlcommands
+        headers: 
+          Accept: '*/*'
+    - name: copy files from remote machine
+      copy:
+        src: my.cnf
+        dest: /root/.my.cnf
+        mode: '600'
+    - name: mysql command
+      shell: touch /var/dbcreated && mysql -u root < /tmp/mysqlcommands
+      args:
+        creates: /var/dbcreated
+    - name: download wordpress
+      get_url:
+        url: https://wordpress.org/latest.zip
+        dest: /tmp/latest.zip
+        headers:
+          Accept: '*/*'
+    - name: unzip
+      unarchive:
+        src: /tmp/latest.zip
+        dest: /var/www/html/
+        remote_src: yes
+    - name: download sample.php
+      get_url:
+        url: https://gitlab.com/roybhaskar9/devops/raw/master/coding/chef/chefwordpress/files/default/wp-config-sample.php
+        dest: /tmp/wp-config-sample.php
+        headers:
+          Accept: '*/*'
+    - name: copy wp config
+      copy:
+        src: /tmp/wp-config-sample.php
+        dest: /var/www/html/wordpress/wp-config.php
+        remote_src: yes
+    - name: setting up permission
+      file: 
+        path: /var/www/html/wordpress
+        state: directory
+        recurse: yes
+        owner: www-data
+        group: www-data
+        mode: '0775'
+   handlers:
+    - name: restart apache2
+      service: name=apache2 state=restart
